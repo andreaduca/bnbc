@@ -48,7 +48,11 @@ def _sample_rows() -> List[_Row]:
         _b(date(2025, 7, 25), 1, 50,   80),  # yellow
 
         # --- Aug 2025 ---
-        _b(date(2025, 8, 2),  4,  8,  232),  # red
+        # Aug 2-5 and Aug 6-8 are back-to-back AND share color (red) and
+        # nightly rate (58) — exercises the "consecutive bookings stay
+        # visually distinct" path.
+        _b(date(2025, 8, 2),  4,  8,  232),  # red, 58/night, Aug 2-5
+        _b(date(2025, 8, 6),  3,  8,  174),  # red, 58/night, Aug 6-8
         _b(date(2025, 8, 15), 2, 75,  180),  # light blue
         _b(date(2025, 8, 28), 2, 120, 220),  # green
 
@@ -79,7 +83,10 @@ def _sample_rows() -> List[_Row]:
         _b(date(2026, 3, 19),  2, 45,  150),  # yellow
 
         # --- Apr 2026 ---
-        _b(date(2026, 4, 5),   1, 12,   60),  # red
+        # Apr 5 (1n) and Apr 6-7 (2n) are back-to-back same-color same-price
+        # — the worst case for visual disambiguation.
+        _b(date(2026, 4, 5),   1, 12,   60),  # red, 60/night, Apr 5
+        _b(date(2026, 4, 6),   2, 10,  120),  # red, 60/night, Apr 6-7
         _b(date(2026, 4, 15),  3, 100, 285),  # green
         _b(date(2026, 4, 28),  2, 29,  136),  # orange
 

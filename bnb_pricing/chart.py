@@ -32,6 +32,20 @@ from .segments import Segment
 # A4 portrait in inches.
 A4_PORTRAIT_INCHES = (8.27, 11.69)
 
+# Each booking's rectangle is shrunk by this many days on each side so two
+# back-to-back bookings keep a visible empty margin between their black
+# borders — they must never touch even when the second guest checks in
+# the same day the first checks out.
+_BOOKING_INSET = 0.2
+
+# Thin black border drawn around each booking rectangle. Acts as the
+# explicit "this is one booking" grouping cue.
+_BOOKING_BORDER_PT = 0.8
+
+# Thin white separators inside a multi-night booking, splitting the
+# colored fill into one cell per night.
+_CELL_SEPARATOR_PT = 0.6
+
 
 def build_month_grid(end_month: date) -> List[Tuple[int, int]]:
     """Return the 12 (year, month) pairs ending at `end_month`, oldest first."""
@@ -91,41 +105,70 @@ def _draw_month(ax, year: int, month: int,
     """Draw one month's subplot. Empty months still get a labeled axis."""
     days_in_month = monthrange(year, month)[1]
 
-    # Slight transparency so neighbouring bars are visually distinct even
-    # if the data accidentally overlaps.
+    # Each booking is drawn as a black-bordered rectangle (the grouping
+    # cue) filled with its lead-time color. For multi-night bookings the
+    # fill is split into one cell per night by thin white separators. The
+    # _BOOKING_INSET on each side ensures two consecutive booking borders
+    # never touch, even when they share a calendar day.
     for seg in segs:
+        fill_start = seg.start_day - 0.5 + _BOOKING_INSET
+        fill_width = seg.width_days - 2 * _BOOKING_INSET
+
         rect = Rectangle(
-            xy=(seg.start_day - 0.5, 0),
-            width=seg.width_days,
+            xy=(fill_start, 0),
+            width=fill_width,
             height=seg.nightly_rate,
             facecolor=seg.color,
-            edgecolor="white",
-            linewidth=0.5,
-            alpha=0.85,
+            edgecolor="black",
+            linewidth=_BOOKING_BORDER_PT,
+            alpha=0.95,
         )
         ax.add_patch(rect)
 
-        # Price label centered above the bar so the host can read it at a glance.
-        center_x = seg.start_day - 0.5 + seg.width_days / 2
+        # N-1 equal-width internal separators split the bar into N night
+        # cells. A 1-night stay has zero separators (range is empty).
+        cell_width = fill_width / seg.width_days
+        for k in range(1, seg.width_days):
+            ax.vlines(
+                x=fill_start + k * cell_width,
+                ymin=0,
+                ymax=seg.nightly_rate,
+                colors="white",
+                linewidth=_CELL_SEPARATOR_PT,
+            )
+
+        # Price label, rotated 90° so adjacent narrow bars don't have
+        # their labels overlap. Anchored just above the bar; the text
+        # extends upward.
+        center_x = fill_start + fill_width / 2
         ax.text(
             center_x,
-            seg.nightly_rate + y_max * 0.01,
+            seg.nightly_rate + y_max * 0.015,
             _format_price(seg.nightly_rate),
             ha="center", va="bottom",
             fontsize=5.5,
+            rotation=90,
         )
 
     ax.set_xlim(0.5, days_in_month + 0.5)
-    # Headroom for the price labels sitting on top of the tallest bar.
-    ax.set_ylim(0, y_max * 1.08)
+    # Headroom for the rotated vertical price labels on top of the
+    # tallest bar — they need more vertical room than horizontal labels.
+    ax.set_ylim(0, y_max * 1.18)
     ax.set_title(_month_label(year, month), fontsize=9)
-    ax.tick_params(axis="both", labelsize=5)
+    ax.tick_params(axis="both", labelsize=7)
 
-    # Tick every day of the month so the host can see exactly how many
-    # nights each bar covers. Rotate so the labels stay legible.
-    ax.set_xticks(range(1, days_in_month + 1))
-    ax.tick_params(axis="x", rotation=90, pad=1)
+    # Sparse X ticks — the bar itself shows the night count now, so we
+    # no longer need a label on every day of the month.
+    ax.set_xticks(_sparse_day_ticks(days_in_month))
     ax.grid(axis="y", linestyle=":", linewidth=0.5, alpha=0.6)
+
+
+def _sparse_day_ticks(days_in_month: int) -> List[int]:
+    """Return week-aligned X ticks: 1, 8, 15, 22, plus the last day."""
+    ticks = [1, 8, 15, 22]
+    if days_in_month not in ticks:
+        ticks.append(days_in_month)
+    return ticks
 
 
 def _format_price(value: float) -> str:
