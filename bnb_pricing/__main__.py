@@ -14,6 +14,8 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
+
 from .chart import render_pdf
 from .config import load_column_map
 from .loader import BookingDataError, load_bookings
@@ -40,7 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
                       help="Path of the output PDF (default: report.pdf).")
     p_an.add_argument("--end-month", default=None,
                       help="Most recent month shown, format YYYY-MM. "
-                           "Defaults to the current calendar month.")
+                           "Defaults to the latest checkin month in the CSV.")
     p_an.add_argument("--config", default=None, type=Path,
                       help="Optional YAML config overriding column names.")
 
@@ -55,11 +57,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_end_month(arg: Optional[str]) -> date:
-    """Return the first day of the requested end-month, or current month."""
-    if arg is None:
-        today = date.today()
-        return date(today.year, today.month, 1)
+def _parse_end_month(arg: str) -> date:
+    """Parse a YYYY-MM string into the first day of that month."""
     try:
         year_str, month_str = arg.split("-")
         return date(int(year_str), int(month_str), 1)
@@ -69,9 +68,24 @@ def _parse_end_month(arg: Optional[str]) -> date:
         ) from exc
 
 
+def _resolve_end_month(arg: Optional[str], bookings: pd.DataFrame) -> date:
+    """Return the explicit --end-month if given, else the data's latest month.
+
+    Falling back to "today" when the data is much older would produce a
+    chart of empty months — using the data's max checkin month keeps the
+    12-month window anchored to where the bookings actually live.
+    """
+    if arg is not None:
+        return _parse_end_month(arg)
+    if not bookings.empty:
+        max_checkin = bookings["checkin"].max().date()
+        return date(max_checkin.year, max_checkin.month, 1)
+    today = date.today()
+    return date(today.year, today.month, 1)
+
+
 def _cmd_analyze(args: argparse.Namespace) -> int:
     column_map = load_column_map(args.config)
-    end_month = _parse_end_month(args.end_month)
 
     try:
         bookings = load_bookings(args.input, column_map)
@@ -81,6 +95,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
 
     if bookings.empty:
         print("WARNING: no valid bookings found after validation.", file=sys.stderr)
+
+    end_month = _resolve_end_month(args.end_month, bookings)
 
     segments = split_into_segments(bookings)
     render_pdf(segments, end_month, args.output)
