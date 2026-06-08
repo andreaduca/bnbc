@@ -1,3 +1,6 @@
 prompts
 sample_bookings.csv
 CLAUDE.md
+.venv/
+__pycache__/
+*.pyc

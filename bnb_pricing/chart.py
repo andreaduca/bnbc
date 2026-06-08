@@ -199,7 +199,7 @@ def _add_title(fig, months: List[Tuple[int, int]]) -> None:
     end = date(last_year, last_month, 1).strftime("%b %Y")
     fig.text(
         0.02, 0.965,
-        f"Last 12 months: from {start} to {end}",
+        f"From {start} to {end}",
         fontsize=14, fontweight="bold",
         ha="left", va="top",
     )
